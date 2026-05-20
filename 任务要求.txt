@@ -1,0 +1,72 @@
+你需要在 Ubuntu 上编写一个 ROS1 节点，接收来自 STM32MP257 开发板的 TMF8829 ToF 传感器 UDP 数据流，并发布为 ROS 话题。          
+                                                                                                                                   
+  ## 数据源                                                                                                                      
+  - 协议：UDP，单播                                                                                                                
+  - 发送方 IP：192.168.100.1（开发板 end0）                                                                                        
+  - 接收端口：55320                                                                                                                
+  - 帧率：约 5~15 Hz                                                                                                               
+                                                                                                                                   
+  ## UDP 包格式                                                                                                                    
+                                                                                                                                   
+  ### 帧头（28 字节，小端序）                                                                                                      
+  | 偏移 | 类型     | 字段          | 说明                        |
+  |------|----------|---------------|-----------------------------|                                                                
+  | 0    | uint32   | magic         | 0x544F4600（"TOF\0"）       |                                                                
+  | 4    | uint16   | version       | 2                           |                                                                
+  | 6    | uint16   | mode          | 0x04（48×32 模式）          |                                                                
+  | 8    | uint32   | frame_id      | 递增帧序号                  |                                                                
+  | 12   | uint64   | timestamp_us  | CLOCK_MONOTONIC 微秒时间戳  |                                                                
+  | 20   | uint16   | cols          | 48                          |                                                                
+  | 22   | uint16   | rows          | 32                          |                                                                
+  | 24   | uint32   | payload_bytes | 4608（= 1536 × 3）          |                                                                
+                                                                                                                                   
+  struct 定义（packed）：                                                                                                          
+  ```c                                                                                                                             
+  struct tof_udp_header {                                                                                                          
+      uint32_t magic;
+      uint16_t version;
+      uint16_t mode;
+      uint32_t frame_id;
+      uint64_t timestamp_us;                                                                                                       
+      uint16_t cols;
+      uint16_t rows;                                                                                                               
+      uint32_t payload_bytes;
+  };
+
+  载荷（4608 字节）                                                                                                                
+   
+  帧头之后紧跟 1536 个 zone，按行优先排列（row 0 左→右，共 32 行 × 48 列）。                                                       
+                  
+  每个 zone 3 字节（packed）：                                                                                                     
+                                                       
+  ┌──────┬────────┬─────────┬─────────────────────────┐                                                                            
+  │ 偏移 │  类型  │  字段   │          说明           │                                                                            
+  ├──────┼────────┼─────────┼─────────────────────────┤
+  │ 0    │ uint16 │ dist_mm │ 距离，单位 mm，0 = 无效 │                                                                            
+  ├──────┼────────┼─────────┼─────────────────────────┤
+  │ 2    │ uint8  │ conf    │ 置信度，0 = 无效        │                                                                            
+  └──────┴────────┴─────────┴─────────────────────────┘                                                                            
+                                                                                                                                   
+  Python 解析示例：                                                                                                                
+  import struct, numpy as np
+  HEADER_FMT = "<IHHIQHHI"   # 28 bytes
+  ZONE_DTYPE  = np.dtype([('dist', '<u2'), ('conf', 'u1')])                                                                        
+                                                           
+  magic, version, mode, frame_id, ts_us, cols, rows, payload_bytes = \                                                             
+      struct.unpack(HEADER_FMT, buf[:28])                                                                                          
+  zones = np.frombuffer(buf[28:28+payload_bytes], dtype=ZONE_DTYPE).reshape(rows, cols)                                            
+  dist_mm = zones['dist'].astype(float)   # shape (32, 48)                                                                         
+  conf    = zones['conf']                                                                                                          
+  dist_mm[(dist_mm == 0) | (conf == 0)] = np.nan  # 无效置为 NaN                                                                   
+                                                                                                                                   
+  要求                                                                                                                             
+                  
+  1. 监听 UDP 0.0.0.0:55320                                                                                                        
+  2. 验证 magic（0x544F4600）和 version（2），不匹配则丢弃
+  3. 将有效 zone（dist > 0 且 conf > 0）发布为 sensor_msgs/PointCloud2，话题名 /tof/points                                         
+    - 坐标系：tof_frame                                                                                                            
+    - x = col_index（像素列），y = row_index（像素行），z = dist_mm / 1000.0（转换为米）                                           
+    - 或者根据你的 FOV 参数计算真实 3D 坐标（FOV 暂未提供，先用像素索引占位）                                                      
+  4. 同时发布原始深度图为 sensor_msgs/Image（32FC1，单位米），话题名 /tof/depth，无效值填 0                                        
+  5. 使用 frame_id 检测丢帧并打印警告                                                                                              
+  6. 节点名：tof_receiver，package 名：tof_ros    

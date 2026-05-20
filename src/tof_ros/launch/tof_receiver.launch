@@ -1,0 +1,27 @@
+<launch>
+  <!-- 独立运行时自动启动 RViz；被其他 launch 包含时设为 false 避免节点名冲突 -->
+  <arg name="launch_rviz" default="true"/>
+
+  <node name="tof_receiver"
+        pkg="tof_ros"
+        type="tof_receiver"
+        output="screen"
+        required="true">
+    <!-- 置信度阈值（uint8，0-255），低于此值的测量点丢弃 -->
+    <param name="conf_threshold" value="5"/>
+    <!-- 有效距离范围（米）：调大 dist_min_m 可过滤近处遮挡物（如杜邦线） -->
+    <param name="dist_min_m"     value="0.10"/>
+    <param name="dist_max_m"     value="5.7"/>
+    <!-- 统计离群点滤波（SOR）：k 近邻数量 -->
+    <param name="sor_neighbors"  value="10"/>
+    <!-- 统计离群点滤波（SOR）：标准差倍数阈值，越小过滤越激进 -->
+    <param name="sor_std_ratio"  value="2.0"/>
+  </node>
+
+  <node if="$(arg launch_rviz)"
+        name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find tof_ros)/rviz/tof.rviz"
+        output="log"/>
+</launch>

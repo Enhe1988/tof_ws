@@ -1,0 +1,50 @@
+<launch>
+  <!-- ── 先验地图路径 ──────────────────────────────────────────────────────── -->
+  <arg name="map_path" default="/home/enhe/tof_ws/scans.pcd"/>
+
+  <!-- ── 传感器在地图坐标系中的初始位姿 ────────────────────────────────────────
+       init_x/y/z      : 传感器位置（单位：米，FAST-LIO2 地图坐标系）
+       init_heading_deg: 传感器光轴（tof_z 前向）在地图中的朝向角
+                         以 +x_map 为 0°，逆时针为正
+                         0°=朝 +x，90°=朝 +y，180°=朝 -x，-90°=朝 -y
+       根据传感器实际放置位置和朝向调整这四个参数。
+  -->
+  <arg name="init_x"           default="0.0"/>
+  <arg name="init_y"           default="0.0"/>
+  <arg name="init_z"           default="1.0"/>
+  <arg name="init_heading_deg" default="0.0"/>
+  <arg name="max_corr_dist"     default="1.5"/>
+  <arg name="accumulate_frames" default="1"/>
+  <arg name="max_fitness"     default="0.02"/>
+  <arg name="max_jump"        default="0.5"/>
+
+  <!-- ── UDP 接收节点（TMF8829 → /tof/points） ─────────────────────────────── -->
+  <include file="$(find tof_ros)/launch/tof_receiver.launch">
+    <arg name="launch_rviz" value="false"/>  <!-- RViz 由本文件统一启动 -->
+  </include>
+
+  <!-- ── ICP 定位节点 ───────────────────────────────────────────────────────── -->
+  <node name="tof_localizer"
+        pkg="tof_ros"
+        type="tof_localizer"
+        output="screen"
+        required="true">
+    <param name="map_path"         value="$(arg map_path)"/>
+    <param name="voxel_size"       value="0.10"/>  <!-- 先验地图体素下采样边长（米） -->
+    <param name="init_x"           value="$(arg init_x)"/>
+    <param name="init_y"           value="$(arg init_y)"/>
+    <param name="init_z"           value="$(arg init_z)"/>
+    <param name="init_heading_deg" value="$(arg init_heading_deg)"/>
+    <param name="accumulate_frames" value="$(arg accumulate_frames)"/>
+    <param name="max_corr_dist"    value="$(arg max_corr_dist)"/>  <!-- GICP 最大匹配距离（米） -->
+    <param name="max_fitness"      value="$(arg max_fitness)"/>  <!-- fitness 超过此值拒绝更新（越小越严格） -->
+    <param name="max_jump"         value="$(arg max_jump)"/>    <!-- 帧间最大允许位移（米），超过视为跳变拒绝 -->
+  </node>
+
+  <!-- ── RViz 可视化 ────────────────────────────────────────────────────────── -->
+  <node name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find tof_ros)/rviz/tof_icp.rviz"
+        output="log"/>
+</launch>

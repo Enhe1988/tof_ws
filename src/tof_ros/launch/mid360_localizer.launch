@@ -1,0 +1,46 @@
+<launch>
+  <!-- ── 先验地图路径 ──────────────────────────────────────────────────────── -->
+  <arg name="map_path" default="/home/enhe/tof_ws/scans_2.pcd"/>
+
+  <!-- ── Mid-360 点云话题（livox_ros_driver2 默认发布 /livox/lidar） ───────── -->
+  <arg name="input_topic" default="/livox/lidar"/>
+
+  <!-- ── 初始位姿（在 scans_2.pcd 地图坐标系中） ───────────────────────────── -->
+  <arg name="init_x"           default="0.0"/>
+  <arg name="init_y"           default="0.0"/>
+  <arg name="init_z"           default="0.0"/>
+  <arg name="init_heading_deg" default="0.0"/>
+
+  <!-- ── 调试用宽松阈值（稳定后可收紧） ───────────────────────────────────── -->
+  <arg name="max_corr_dist" default="3.0"/>
+  <arg name="max_fitness"   default="200.0"/>
+  <arg name="max_jump"      default="5.0"/>
+
+  <!-- ── ICP 定位节点 ───────────────────────────────────────────────────────── -->
+  <node name="tof_localizer"
+        pkg="tof_ros"
+        type="tof_localizer"
+        output="screen"
+        required="true">
+    <param name="map_path"        value="$(arg map_path)"/>
+    <param name="input_topic"     value="$(arg input_topic)"/>
+    <param name="sensor_frame"    value="livox_frame"/>
+    <param name="use_r_mount"     value="false"/>        <!-- Mid-360 坐标系与地图一致，不需要 R_mount -->
+    <param name="voxel_size"      value="0.10"/>         <!-- 先验地图体素下采样 -->
+    <param name="src_voxel_size"  value="0.10"/>         <!-- source 点云下采样（Mid-360 点云密） -->
+    <param name="init_x"           value="$(arg init_x)"/>
+    <param name="init_y"           value="$(arg init_y)"/>
+    <param name="init_z"           value="$(arg init_z)"/>
+    <param name="init_heading_deg" value="$(arg init_heading_deg)"/>
+    <param name="max_corr_dist"    value="$(arg max_corr_dist)"/>
+    <param name="max_fitness"      value="$(arg max_fitness)"/>
+    <param name="max_jump"         value="$(arg max_jump)"/>
+  </node>
+
+  <!-- ── RViz 可视化 ────────────────────────────────────────────────────────── -->
+  <node name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find tof_ros)/rviz/tof_icp.rviz"
+        output="log"/>
+</launch>
