@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dpkg -l)",
-      "Bash(awk '{print $2, $3}')"
+      "Bash(awk '{print $2, $3}')",
+      "Bash(catkin_make --only-pkg-with-deps tof_ros)"
     ]
   }
 }

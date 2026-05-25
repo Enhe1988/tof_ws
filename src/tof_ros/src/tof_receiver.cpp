@@ -207,6 +207,10 @@ int main(int argc, char** argv)
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
         cloud->reserve(zone_count);
 
+        // 诊断：打印第0个zone的原始值，确认传感器在发数据
+        ROS_INFO_THROTTLE(2.0, "raw zone[0]: dist_mm=%u conf=%u",
+                          zones[0].dist_mm, zones[0].conf);
+
         uint32_t n_invalid = 0, n_low_conf = 0, n_dist_range = 0;
         for (uint16_t row = 0; row < rows; ++row) {
             uint16_t srow = data_row_to_spatial(row, rows);

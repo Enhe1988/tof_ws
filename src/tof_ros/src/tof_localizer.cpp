@@ -7,8 +7,13 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/features/normal_3d.h>
 #include <pcl/registration/gicp.h>
+#include <pcl/registration/icp.h>
+#include <pcl/registration/transformation_estimation_point_to_plane.h>
+#include <pcl/common/concatenate.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <boost/shared_ptr.hpp>
 
 #include <Eigen/Geometry>
 #include <cmath>
@@ -26,6 +31,8 @@ static double                               g_max_fitness;
 static double                               g_max_jump;
 static double                               g_src_voxel;
 static std::string                          g_sensor_frame;
+static std::string                          g_matcher_type;
+static pcl::PointCloud<pcl::PointNormal>::Ptr g_map_with_normals;
 static int                                  g_accum_frames;
 static int                                  g_fail_count  = 0;
 static int                                  g_max_fails   = 30; // 连续失败 N 帧后重置到初始猜测
@@ -88,25 +95,63 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
         src = filtered;
     }
 
-    if (static_cast<int>(src->size()) < 20) {
+    if (static_cast<int>(src->size()) < 50) {
         ROS_WARN_THROTTLE(2.0, "Source cloud too sparse (%zu pts), skipping", src->size());
         return;
     }
     ROS_INFO_THROTTLE(1.0, "src pts: %zu", src->size());
 
-    pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
-    gicp.setInputSource(src);
-    gicp.setInputTarget(g_map);
-    gicp.setMaxCorrespondenceDistance(g_max_corr);
-    gicp.setMaximumIterations(50);
-    gicp.setTransformationEpsilon(1e-6);
-    gicp.setEuclideanFitnessEpsilon(1e-6);
-
+    bool            converged;
+    float           fitness;
+    Eigen::Matrix4f T_new;
     pcl::PointCloud<pcl::PointXYZ>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZ>);
     auto t0 = ros::WallTime::now();
-    gicp.align(*aligned, g_T);
-    double gicp_ms = (ros::WallTime::now() - t0).toSec() * 1000.0;
-    ROS_DEBUG_THROTTLE(1.0, "GICP took %.1f ms", gicp_ms);
+
+    if (g_matcher_type == "icp_ptp") {
+        // ── source 法向量估计 ──────────────────────────────────────────────────
+        pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+        ne.setInputCloud(src);
+        ne.setKSearch(10);
+        pcl::PointCloud<pcl::Normal>::Ptr src_normals(new pcl::PointCloud<pcl::Normal>);
+        ne.compute(*src_normals);
+        pcl::PointCloud<pcl::PointNormal>::Ptr src_pn(new pcl::PointCloud<pcl::PointNormal>);
+        pcl::concatenateFields(*src, *src_normals, *src_pn);
+
+        typedef pcl::registration::TransformationEstimationPointToPlane<
+            pcl::PointNormal, pcl::PointNormal> PtP;
+        boost::shared_ptr<PtP> te(new PtP());
+        pcl::IterativeClosestPoint<pcl::PointNormal, pcl::PointNormal> icp;
+        icp.setTransformationEstimation(te);
+        icp.setInputSource(src_pn);
+        icp.setInputTarget(g_map_with_normals);
+        icp.setMaxCorrespondenceDistance(g_max_corr);
+        icp.setMaximumIterations(50);
+        icp.setTransformationEpsilon(1e-6);
+        icp.setEuclideanFitnessEpsilon(1e-6);
+
+        pcl::PointCloud<pcl::PointNormal>::Ptr al(new pcl::PointCloud<pcl::PointNormal>);
+        icp.align(*al, g_T);
+        converged = icp.hasConverged();
+        fitness   = static_cast<float>(icp.getFitnessScore());
+        T_new     = icp.getFinalTransformation();
+        pcl::copyPointCloud(*al, *aligned);
+    } else {
+        // ── GICP（默认）─────────────────────────────────────────────────────
+        pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
+        gicp.setInputSource(src);
+        gicp.setInputTarget(g_map);
+        gicp.setMaxCorrespondenceDistance(g_max_corr);
+        gicp.setMaximumIterations(50);
+        gicp.setTransformationEpsilon(1e-6);
+        gicp.setEuclideanFitnessEpsilon(1e-6);
+        gicp.align(*aligned, g_T);
+        converged = gicp.hasConverged();
+        fitness   = static_cast<float>(gicp.getFitnessScore());
+        T_new     = gicp.getFinalTransformation();
+    }
+
+    double match_ms = (ros::WallTime::now() - t0).toSec() * 1000.0;
+    ROS_DEBUG_THROTTLE(1.0, "%s took %.1f ms", g_matcher_type.c_str(), match_ms);
 
     auto reject = [&](const char* reason) {
         if (++g_fail_count >= g_max_fails) {
@@ -118,13 +163,10 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
         ROS_WARN_THROTTLE(1.0, "%s", reason);
     };
 
-    if (!gicp.hasConverged()) {
-        reject("GICP did not converge");
+    if (!converged) {
+        reject("matcher did not converge");
         return;
     }
-
-    float fitness = gicp.getFitnessScore();
-    Eigen::Matrix4f T_new = gicp.getFinalTransformation();
 
     // ── 防跳变检查 ────────────────────────────────────────────────────────────
     if (fitness > static_cast<float>(g_max_fitness)) {
@@ -151,8 +193,8 @@ void cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
     Eigen::Vector3f tof_fwd = g_T.block<3, 3>(0, 0).col(2);
     float heading_out = std::atan2(tof_fwd(1), tof_fwd(0)) * 180.f / M_PI;
     ROS_INFO_THROTTLE(1.0,
-        "GICP converged: fitness=%.4f  pos=(%.3f, %.3f, %.3f)  heading=%.1f deg",
-        fitness, t(0), t(1), t(2), heading_out);
+        "[%s] converged: fitness=%.4f  pos=(%.3f, %.3f, %.3f)  heading=%.1f deg",
+        g_matcher_type.c_str(), fitness, t(0), t(1), t(2), heading_out);
 
     ros::Time stamp = msg->header.stamp;
 
@@ -210,11 +252,12 @@ int main(int argc, char** argv)
     nh.param("use_r_mount",      use_r_mount,      true);
     nh.param("init_x",           init_x,           0.0);
     nh.param("init_y",           init_y,           0.0);
-    nh.param("init_z",           init_z,           1.0);
+    nh.param("init_z",           init_z,           0.0);
     nh.param("init_heading_deg", init_heading_deg, 0.0);
     nh.param("max_corr_dist",    g_max_corr,       1.0);
     nh.param("max_fitness",      g_max_fitness,    0.1);
     nh.param("max_jump",         g_max_jump,       0.3);
+    nh.param<std::string>("matcher_type", g_matcher_type, "gicp");
 
     if (map_path.empty()) {
         ROS_FATAL("~map_path param is required");
@@ -240,6 +283,18 @@ int main(int argc, char** argv)
     vg.filter(*g_map);
     ROS_INFO("Map downsampled to %zu pts (leaf=%.2f m, max_corr=%.2f m)",
              g_map->size(), voxel_size, g_max_corr);
+
+    if (g_matcher_type == "icp_ptp") {
+        ROS_INFO("预计算地图法向量（Point-to-Plane ICP）...");
+        pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+        ne.setInputCloud(g_map);
+        ne.setKSearch(10);
+        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+        ne.compute(*normals);
+        g_map_with_normals.reset(new pcl::PointCloud<pcl::PointNormal>);
+        pcl::concatenateFields(*g_map, *normals, *g_map_with_normals);
+        ROS_INFO("地图法向量计算完毕：%zu pts", g_map_with_normals->size());
+    }
 
     // ── Initial pose guess ────────────────────────────────────────────────────
     g_T      = makeInitialGuess(init_x, init_y, init_z, init_heading_deg, use_r_mount);
