@@ -229,6 +229,7 @@ int main(int argc, char** argv)
                 out.pose.position.z = g_st.pos_z;
 
                 // 朝向复用最新 ToF 朝向（仅 yaw）
+                
                 const double hz = g_st.heading / 2.0;
                 out.pose.orientation.x = 0.0;
                 out.pose.orientation.y = 0.0;
