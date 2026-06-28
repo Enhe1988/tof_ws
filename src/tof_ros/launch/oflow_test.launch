@@ -1,0 +1,41 @@
+<launch>
+  <node name="oflow_odometry"
+        pkg="tof_ros"
+        type="oflow_odometry"
+        output="screen"
+        required="true">
+    <param name="port"             value="/dev/ttyUSB0"/>
+    <param name="height_override"  value="-1.0"/>   <!-- 使用模块自带测距 -->
+    <param name="init_heading_deg" value="0.0"/>
+    <param name="mount_yaw_deg"    value="0.0"/>
+    <param name="flow_sign_x"      value="1"/>
+    <param name="flow_sign_y"      value="1"/>
+    <param name="min_laser_conf"   value="10"/>     <!-- 测距置信度阈值 -->
+  </node>
+
+  <!-- 发布先验地图原始点云 -->
+  <node name="map_publisher"
+        pkg="pcl_ros"
+        type="pcd_to_pointcloud"
+        args="/home/enhe/tof_ws/scans_2.pcd 1"
+        output="log">
+    <param name="frame_id" value="map"/>
+    <remap from="cloud_pcd" to="/oflow_test/map_raw"/>
+  </node>
+
+  <!-- 体素降采样（0.10m，与 tof_localizer 一致）-->
+  <node name="map_voxel"
+        pkg="nodelet" type="nodelet"
+        args="standalone pcl/VoxelGrid"
+        output="log">
+    <remap from="~input"  to="/oflow_test/map_raw"/>
+    <remap from="~output" to="/oflow_test/map"/>
+    <param name="leaf_size" value="0.10"/>
+  </node>
+
+  <node name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find tof_ros)/rviz/oflow_test.rviz"
+        output="log"/>
+</launch>

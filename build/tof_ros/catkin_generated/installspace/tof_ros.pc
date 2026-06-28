@@ -5,4 +5,4 @@ Description: Description of tof_ros
 Version: 0.1.0
 Cflags: 
 Libs: -L${prefix}/lib 
-Requires: roscpp sensor_msgs std_msgs geometry_msgs tf2_ros pcl_ros pcl_conversions
+Requires: roscpp sensor_msgs std_msgs geometry_msgs nav_msgs tf2_ros pcl_ros pcl_conversions

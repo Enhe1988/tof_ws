@@ -1,0 +1,37 @@
+<launch>
+  <node name="oflow_odometry"
+        pkg="tof_ros"
+        type="oflow_odometry"
+        output="screen"
+        required="true">
+
+    <!-- USB转TTL串口设备 -->
+    <param name="port"            value="/dev/ttyUSB0"/>
+
+    <!-- 光流模块机头(Y轴)相对于ToF传感器前向的安装偏转角（度）
+         光流Y轴与ToF光轴同向 → 0
+         光流Y轴与ToF光轴垂直（右偏90°） → 90
+         调试方法：向ToF前方推进，检查 /oflow/pose x 是否增加 -->
+    <param name="mount_yaw_deg"   value="0.0"/>
+
+    <!-- 初始朝向假设（度），在收到第一个 /tof/pose 之前使用
+         与 tof_localizer 的 init_heading_deg 保持一致 -->
+    <param name="init_heading_deg" value="0.0"/>
+
+    <!-- 强制高度（m）：>0 时不使用激光测距，适合高度恒定场景
+         -1 表示使用模块自带激光测距 -->
+    <param name="height_override" value="-1.0"/>
+
+    <!-- 激光测距最低置信度（0~100，0x64=100%），低于此值丢弃帧 -->
+    <param name="min_laser_conf"  value="10"/>
+
+    <!-- 光流方向符号：若实测位移方向与预期相反，改为 -1
+         调试步骤：
+           1. 向机头方向（ToF光轴方向）缓慢推进
+           2. 观察 /oflow/pose position 变化
+           3. x 应增加（若减小则 flow_sign_y=-1）
+           4. 向右推进，y 应减小（map右手坐标系）；若方向错则 flow_sign_x=-1 -->
+    <param name="flow_sign_x"     value="1"/>
+    <param name="flow_sign_y"     value="1"/>
+  </node>
+</launch>

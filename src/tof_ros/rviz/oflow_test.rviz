@@ -1,0 +1,69 @@
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+  - Class: rviz/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Color: 160; 160; 164
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+    - Class: rviz/PointCloud2
+      Name: 先验地图
+      Enabled: true
+      Topic: /oflow_test/map
+      Color Transformer: FlatColor
+      Color: 200; 200; 200
+      Size (m): 0.03
+      Style: Points
+      Queue Size: 1
+    - Class: rviz/Pose
+      Name: 光流里程计位姿
+      Enabled: true
+      Topic: /oflow/pose
+      Color: 0; 200; 0
+      Shaft Length: 0.3
+      Shaft Radius: 0.03
+      Head Length: 0.15
+      Head Radius: 0.06
+      Shape: Arrow
+      Queue Size: 10
+    - Class: rviz/Path
+      Name: 光流轨迹
+      Enabled: true
+      Topic: /oflow/path
+      Color: 0; 200; 0
+      Line Style: Lines
+      Line Width: 0.03
+      Queue Size: 1000
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz/TopDownOrtho
+      Name: 俯视图
+      Scale: 100
+      Target Frame: <Fixed Frame>
+      X: 0
+      Y: 0

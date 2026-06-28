@@ -185,7 +185,7 @@ foreach(t ${tof_ros_EXPORTED_TARGETS})
   endif()
 endforeach()
 
-set(depends "roscpp;sensor_msgs;std_msgs;geometry_msgs;tf2_ros;pcl_ros;pcl_conversions")
+set(depends "roscpp;sensor_msgs;std_msgs;geometry_msgs;nav_msgs;tf2_ros;pcl_ros;pcl_conversions")
 foreach(depend ${depends})
   string(REPLACE " " ";" depend_list ${depend})
   # the package name of the dependency must be kept in a unique variable so that it is not overwritten in recursive calls

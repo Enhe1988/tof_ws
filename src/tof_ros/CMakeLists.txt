@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   std_msgs
   geometry_msgs
+  nav_msgs
   tf2_ros
   pcl_ros
   pcl_conversions
@@ -15,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(PCL REQUIRED COMPONENTS common filters)
 
 catkin_package(
-  CATKIN_DEPENDS roscpp sensor_msgs std_msgs geometry_msgs tf2_ros pcl_ros pcl_conversions
+  CATKIN_DEPENDS roscpp sensor_msgs std_msgs geometry_msgs nav_msgs tf2_ros pcl_ros pcl_conversions
 )
 
 include_directories(${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
@@ -28,7 +29,11 @@ add_executable(tof_localizer src/tof_localizer.cpp)
 add_dependencies(tof_localizer ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(tof_localizer ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
-install(TARGETS tof_receiver tof_localizer
+add_executable(oflow_odometry src/oflow_odometry.cpp)
+add_dependencies(oflow_odometry ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(oflow_odometry ${catkin_LIBRARIES})
+
+install(TARGETS tof_receiver tof_localizer oflow_odometry
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 install(DIRECTORY launch/

@@ -3,7 +3,13 @@
     "allow": [
       "Bash(dpkg -l)",
       "Bash(awk '{print $2, $3}')",
-      "Bash(catkin_make --only-pkg-with-deps tof_ros)"
+      "Bash(catkin_make --only-pkg-with-deps tof_ros)",
+      "Bash(pdftotext \"/home/enhe/tof_ws/优象科技光流激光使用手册T1-001/光流激光二合一模块规格说明书UP-T1-001\\(T101\\)@20250612.pdf\" /tmp/spec.txt)",
+      "Read(//tmp/**)",
+      "Bash(pdftotext \"/home/enhe/tof_ws/优象科技光流激光使用手册T1-001/光流激光二合一模块规格说明书UP-T1-001\\(T101\\)@20250612.pdf\" /tmp/spec_full.txt)",
+      "Bash(pdftotext \"/home/enhe/tof_ws/优象科技光流激光使用手册T1-001/\\(实操版\\)优象科技协议介绍用户手册T1\\(001、Plus）、302GS和T2_V1.0.9_20231214.pdf\" /tmp/protocol.txt)",
+      "Bash(pdftotext \"/home/enhe/tof_ws/优象科技光流激光使用手册T1-001/飞控端调试光流方法说明V1.0@20240329.pdf\" -)",
+      "Bash(pdftotext \"/home/enhe/tof_ws/优象科技光流激光使用手册T1-001/T系列产品调试手册20250423.pdf\" -)"
     ]
   }
 }
